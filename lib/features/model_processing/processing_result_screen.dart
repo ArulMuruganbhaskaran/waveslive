@@ -26,10 +26,10 @@ class _ProcessingResultScreenState
   late Animation<double> _scaleAnim;
   late Animation<double> _fadeAnim;
 
-  // Poll for AI result completion (max ~12 s)
+  // Poll for AI result completion (max ~30 s — AI service takes 1.5–4.5 s)
   Timer? _pollTimer;
   int _pollCount = 0;
-  static const int _maxPolls = 8;
+  static const int _maxPolls = 20; // 20 × 1.5 s = 30 s max wait
 
   @override
   void initState() {
@@ -68,7 +68,9 @@ class _ProcessingResultScreenState
   }
 
   void _startPolling() {
-    _pollTimer = Timer.periodic(const Duration(seconds: 1500 ~/ 1000), (_) async {
+    // Poll every 1.5 s — the AI mock service takes 1.5–4.5 s
+    _pollTimer =
+        Timer.periodic(const Duration(milliseconds: 1500), (_) async {
       if (_pollCount >= _maxPolls) {
         _pollTimer?.cancel();
         return;
@@ -77,11 +79,17 @@ class _ProcessingResultScreenState
       final service = ref.read(dataAcquisitionServiceProvider);
       final report = await service.getReportById(widget.reportId);
       if (!mounted) return;
-      if (report != null &&
+
+      final isDone = report != null &&
           (report.processingStatus == ProcessingStatus.completed ||
-              report.processingStatus == ProcessingStatus.failed)) {
+              report.processingStatus == ProcessingStatus.failed);
+
+      if (isDone) {
         _pollTimer?.cancel();
         setState(() => _report = report);
+        // Re-run the fade animation so the AI result card animates in
+        _animController.reset();
+        _animController.forward();
       } else if (report != null) {
         setState(() => _report = report);
       }
