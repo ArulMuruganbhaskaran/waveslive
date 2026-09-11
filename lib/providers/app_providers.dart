@@ -3,17 +3,20 @@ import '../models/user_model.dart';
 import '../models/report_model.dart';
 import '../models/hazard_model.dart';
 import '../core/constants/app_constants.dart';
-import '../services/mock_auth_service.dart';
+import '../services/firebase_auth_service.dart';
+import '../services/firestore_report_service.dart';
+import '../services/firestore_hazard_service.dart';
+import '../services/firestore_alert_service.dart';
+import '../services/firestore_mitigation_service.dart';
 import '../services/mock_model_processing_service.dart';
 import '../services/image_validation_service.dart';
-import '../services/mock_services.dart';
 
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Service Providers (singletons)
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
-final authServiceProvider = Provider<MockAuthService>((ref) {
-  return MockAuthService();
+final authServiceProvider = Provider<FirebaseAuthService>((ref) {
+  return FirebaseAuthService();
 });
 
 final modelProcessingServiceProvider =
@@ -27,39 +30,39 @@ final imageValidationServiceProvider =
 });
 
 final dataAcquisitionServiceProvider =
-    Provider<MockDataAcquisitionService>((ref) {
-  return MockDataAcquisitionService();
+    Provider<FirestoreReportService>((ref) {
+  return FirestoreReportService();
 });
 
 final verificationServiceProvider =
-    Provider<MockVerificationService>((ref) {
-  return MockVerificationService();
+    Provider<FirestoreReportService>((ref) {
+  return FirestoreReportService();
 });
 
 final hazardMonitoringServiceProvider =
-    Provider<MockHazardMonitoringService>((ref) {
-  return MockHazardMonitoringService();
+    Provider<FirestoreHazardService>((ref) {
+  return FirestoreHazardService();
 });
 
-final alertServiceProvider = Provider<MockAlertService>((ref) {
-  return MockAlertService();
+final alertServiceProvider = Provider<FirestoreAlertService>((ref) {
+  return FirestoreAlertService();
 });
 
-final mitigationServiceProvider = Provider<MockMitigationService>((ref) {
-  return MockMitigationService();
+final mitigationServiceProvider = Provider<FirestoreMitigationService>((ref) {
+  return FirestoreMitigationService();
 });
 
 final reportManagementServiceProvider =
-    Provider<MockReportManagementService>((ref) {
-  return MockReportManagementService();
+    Provider<FirestoreReportService>((ref) {
+  return FirestoreReportService();
 });
 
-// ─────────────────────────────────────────
-// Auth State
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth State  (now backed by Firebase Auth stream)
+// ─────────────────────────────────────────────────────────────────────────────
 
 class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
-  final MockAuthService _authService;
+  final FirebaseAuthService _authService;
 
   AuthNotifier(this._authService) : super(const AsyncValue.loading()) {
     _init();
@@ -108,12 +111,13 @@ final currentUserProvider = Provider<UserModel?>((ref) {
   return ref.watch(authNotifierProvider).valueOrNull;
 });
 
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Report Providers
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
-class ReportsNotifier extends StateNotifier<AsyncValue<List<ReportModel>>> {
-  final MockDataAcquisitionService _service;
+class ReportsNotifier
+    extends StateNotifier<AsyncValue<List<ReportModel>>> {
+  final FirestoreReportService _service;
   final String? _agentId;
 
   ReportsNotifier(this._service, this._agentId)
@@ -144,7 +148,11 @@ class ReportsNotifier extends StateNotifier<AsyncValue<List<ReportModel>>> {
     String? description,
   }) async {
     try {
-      final report = await _service.submitReport(
+      // imagePath is a local path here — the service will upload it.
+      // We pass a dummy XFile-like wrapper; the actual upload logic in
+      // FirestoreReportService.submitReport accepts XFile directly.
+      // For now delegate to the mock path for compatibility.
+      final report = await _service.submitReportFromPath(
         agentId: agentId,
         agentName: agentName,
         imagePath: imagePath,
@@ -180,9 +188,9 @@ final agentReportsProvider = StateNotifierProvider.family<ReportsNotifier,
   ),
 );
 
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Verification Providers
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 final pendingVerificationsProvider =
     FutureProvider<List<ReportModel>>((ref) async {
@@ -191,33 +199,36 @@ final pendingVerificationsProvider =
 });
 
 final verificationHistoryProvider =
-    FutureProvider.family<List<ReportModel>, String>((ref, verifierId) async {
+    FutureProvider.family<List<ReportModel>, String>(
+        (ref, verifierId) async {
   final service = ref.watch(verificationServiceProvider);
   return service.getVerifiedReports(verifierId);
 });
 
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Hazard Monitoring Providers
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 final allHazardsProvider = FutureProvider<List<HazardModel>>((ref) async {
   final service = ref.watch(hazardMonitoringServiceProvider);
   return service.getAllHazards();
 });
 
-final activeHazardsProvider = FutureProvider<List<HazardModel>>((ref) async {
+final activeHazardsProvider =
+    FutureProvider<List<HazardModel>>((ref) async {
   final service = ref.watch(hazardMonitoringServiceProvider);
   return service.getActiveHazards();
 });
 
-final dashboardStatsProvider = Provider<Map<String, int>>((ref) {
+final dashboardStatsProvider =
+    FutureProvider<Map<String, int>>((ref) async {
   final service = ref.watch(hazardMonitoringServiceProvider);
   return service.getDashboardStats();
 });
 
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Alert Providers
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 final alertsProvider =
     FutureProvider.family<List<AlertModel>, String>((ref, officerId) async {
@@ -225,14 +236,15 @@ final alertsProvider =
   return service.getAlertsForOfficer(officerId);
 });
 
-final unreadAlertCountProvider = Provider.family<int, String>((ref, officerId) {
+final unreadAlertCountProvider =
+    FutureProvider.family<int, String>((ref, officerId) async {
   final service = ref.watch(alertServiceProvider);
   return service.getUnreadCount(officerId);
 });
 
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Mitigation Providers
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 final mitigationActionsProvider =
     FutureProvider<List<MitigationActionModel>>((ref) async {
@@ -240,9 +252,9 @@ final mitigationActionsProvider =
   return service.getAllActions();
 });
 
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Report Management Providers
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 class ReportFilterNotifier extends StateNotifier<Map<String, String>> {
   ReportFilterNotifier() : super({});
@@ -267,7 +279,8 @@ final reportFilterProvider =
   (ref) => ReportFilterNotifier(),
 );
 
-final filteredReportsProvider = FutureProvider<List<ReportModel>>((ref) async {
+final filteredReportsProvider =
+    FutureProvider<List<ReportModel>>((ref) async {
   final service = ref.watch(reportManagementServiceProvider);
   final filters = ref.watch(reportFilterProvider);
 
@@ -281,13 +294,15 @@ final filteredReportsProvider = FutureProvider<List<ReportModel>>((ref) async {
 });
 
 /// All reports that have completed AI processing results — shown on officer dashboard.
-final aiProcessedReportsProvider = FutureProvider<List<ReportModel>>((ref) async {
+final aiProcessedReportsProvider =
+    FutureProvider<List<ReportModel>>((ref) async {
   final service = ref.watch(reportManagementServiceProvider);
   final all = await service.getAllReports();
   return all
-      .where((r) => r.processingStatus == ProcessingStatus.completed && r.processingResult != null)
+      .where((r) =>
+          r.processingStatus == ProcessingStatus.completed &&
+          r.processingResult != null)
       .toList()
     ..sort((a, b) => (b.lastUpdatedAt ?? b.submittedAt)
         .compareTo(a.lastUpdatedAt ?? a.submittedAt));
 });
-

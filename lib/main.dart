@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'core/constants/app_theme.dart';
 import 'core/routes/app_router.dart';
-import 'services/mock_data_store.dart';
+import 'services/firestore_seed_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Lock to portrait orientation (mobile only — not supported on web)
@@ -17,8 +19,13 @@ void main() {
     ]);
   }
 
-  // Initialize mock data store
-  MockDataStore.instance.initialize();
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Seed demo data on first launch (no-op if already seeded)
+  await FirestoreSeedService().seedIfNeeded();
 
   runApp(
     const ProviderScope(

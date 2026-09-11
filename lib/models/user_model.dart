@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/constants/app_constants.dart';
 
 /// Represents a user of the WavesLive system
@@ -80,6 +81,46 @@ class UserModel {
         ? DateTime.parse(map['lastLoginAt'])
         : null,
   );
+
+  /// Firestore-specific factory
+  factory UserModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data()!;
+    return UserModel(
+      id: doc.id,
+      name: data['name'] ?? '',
+      email: data['email'] ?? '',
+      role: data['role'] ?? UserRole.agent,
+      organisationId: data['organisationId'] ?? '',
+      organisationName: data['organisationName'] ?? '',
+      phone: data['phone'],
+      avatarUrl: data['avatarUrl'],
+      isActive: data['isActive'] ?? true,
+      createdAt: _parseDate(data['createdAt']),
+      lastLoginAt: data['lastLoginAt'] != null
+          ? _parseDate(data['lastLoginAt'])
+          : null,
+    );
+  }
+
+  /// Writes to Firestore — uses doc.id as the user uid
+  Map<String, dynamic> toFirestore() => {
+    'name': name,
+    'email': email,
+    'role': role,
+    'organisationId': organisationId,
+    'organisationName': organisationName,
+    'phone': phone,
+    'avatarUrl': avatarUrl,
+    'isActive': isActive,
+    'createdAt': createdAt.toIso8601String(),
+    'lastLoginAt': lastLoginAt?.toIso8601String(),
+  };
+
+  static DateTime _parseDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.parse(value);
+    return DateTime.now();
+  }
 }
 
 /// Represents an organisation in the system

@@ -81,11 +81,14 @@ class _OfficerHome extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
-    final stats = ref.watch(dashboardStatsProvider);
+    final statsAsync = ref.watch(dashboardStatsProvider);
     final activeHazardsAsync = ref.watch(activeHazardsProvider);
-    final unreadAlerts = user != null
+    final unreadAsync = user != null
         ? ref.watch(unreadAlertCountProvider(user.id))
-        : 0;
+        : const AsyncValue<int>.data(0);
+
+    final stats = statsAsync.valueOrNull ?? {};
+    final unreadAlerts = unreadAsync.valueOrNull ?? 0;
 
     return CustomScrollView(
       slivers: [

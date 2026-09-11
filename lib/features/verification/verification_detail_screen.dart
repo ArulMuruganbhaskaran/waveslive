@@ -125,8 +125,31 @@ class _VerificationDetailScreenState
     }
 
     final result = report.processingResult!;
-    final service = ref.read(verificationServiceProvider);
-    final summary = service.getSummary(report.verifications);
+    // Compute verification summary inline (no longer a service method)
+    final verifications = report.verifications;
+    final genuineCount =
+        verifications.where((v) => v.result == VerificationResult.genuine).length;
+    final suspiciousCount =
+        verifications.where((v) => v.result == VerificationResult.suspicious).length;
+    final falseCount =
+        verifications.where((v) => v.result == VerificationResult.falsified).length;
+    String overallStatus;
+    if (verifications.isEmpty) {
+      overallStatus = VerificationStatus.pending;
+    } else if (genuineCount > falseCount && genuineCount > suspiciousCount) {
+      overallStatus = VerificationStatus.verified;
+    } else if (falseCount >= genuineCount) {
+      overallStatus = VerificationStatus.rejected;
+    } else {
+      overallStatus = VerificationStatus.suspicious;
+    }
+    final summary = VerificationSummaryModel(
+      genuineCount: genuineCount,
+      suspiciousCount: suspiciousCount,
+      falseCount: falseCount,
+      overallStatus: overallStatus,
+    );
+
 
     return Scaffold(
       appBar: AppBar(

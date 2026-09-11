@@ -314,8 +314,29 @@ class _ReportDetailScreenState extends ConsumerState<ReportDetailScreen> {
   }
 
   Widget _buildVerificationSummary(ReportModel report) {
-    final service = ref.read(verificationServiceProvider);
-    final summary = service.getSummary(report.verifications);
+    final vs = report.verifications;
+    final genuineCount =
+        vs.where((v) => v.result == VerificationResult.genuine).length;
+    final suspiciousCount =
+        vs.where((v) => v.result == VerificationResult.suspicious).length;
+    final falseCount =
+        vs.where((v) => v.result == VerificationResult.falsified).length;
+    String overallStatus;
+    if (vs.isEmpty) {
+      overallStatus = VerificationStatus.pending;
+    } else if (genuineCount > falseCount && genuineCount > suspiciousCount) {
+      overallStatus = VerificationStatus.verified;
+    } else if (falseCount >= genuineCount) {
+      overallStatus = VerificationStatus.rejected;
+    } else {
+      overallStatus = VerificationStatus.suspicious;
+    }
+    final summary = VerificationSummaryModel(
+      genuineCount: genuineCount,
+      suspiciousCount: suspiciousCount,
+      falseCount: falseCount,
+      overallStatus: overallStatus,
+    );
 
     return Container(
       padding: const EdgeInsets.all(12),
